@@ -9,19 +9,17 @@ import { env } from "./config/index.js";
 
 logger.info("cinemax-mcp-server booting");
 
-const server = new McpServer({
-  name: "cinemax-mcp",
-  version: "1.0.0",
-  capabilities: { tools: {} },
-});
-
-registerTools(server);
-
 const transport = env.MCP_TRANSPORT === "http" ? "http" : "stdio";
 
 if (transport === "http") {
-  await startHttp(server);
+  await startHttp();
 } else {
+  const server = new McpServer({
+    name: "cinemax-mcp",
+    version: "1.0.0",
+    capabilities: { tools: {} },
+  });
+  registerTools(server);
   await startStdio(server);
 }
 

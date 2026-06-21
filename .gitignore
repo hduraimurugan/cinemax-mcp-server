@@ -34,6 +34,10 @@ build/
 coverage/
 .nyc_output/
 
+# === Platform launchers (may contain secrets) ===
+*.bat
+*.sh
+
 # === Misc ===
 .cache/
 tmp/

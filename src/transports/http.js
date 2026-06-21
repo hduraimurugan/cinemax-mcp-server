@@ -2,11 +2,23 @@ import express from "express";
 import {
   StreamableHTTPServerTransport,
 } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerTools } from "../registry/index.js";
 import { resolveScope } from "../auth/scopeResolver.js";
 import { env } from "../config/index.js";
 import logger from "../logging/logger.js";
 
-export async function startHttp(server) {
+function createServer() {
+  const srv = new McpServer({
+    name: "cinemax-mcp",
+    version: "1.0.0",
+    capabilities: { tools: {} },
+  });
+  registerTools(srv);
+  return srv;
+}
+
+export async function startHttp() {
   const app = express();
   app.use(express.json());
   app.use((_req, res, next) => {
@@ -26,19 +38,37 @@ export async function startHttp(server) {
   });
 
   app.post("/mcp", async (req, res) => {
+    const server = createServer();
     try {
-      const scope = resolveScope({ apiKey: req.headers["x-api-key"] });
+      req.auth = resolveScope({ apiKey: req.headers["x-api-key"] });
       const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => crypto.randomUUID(),
+        sessionIdGenerator: undefined,
       });
-      transport.requestContext = () => ({ scope });
       await server.connect(transport);
       await transport.handleRequest(req, res, req.body);
+      res.on("close", () => {
+        transport.close().catch(() => {});
+        server.close().catch(() => {});
+      });
     } catch (err) {
-      const status = err.code === 401 ? 401 : 500;
-      logger.error({ err: err.message, status }, "HTTP transport error");
-      res.status(status).json({ error: err.expose ? err.message : "Internal server error" });
+      if (!res.headersSent) {
+        const status = err.code === 401 ? 401 : 500;
+        logger.error({ err: err.message, status }, "HTTP transport error");
+        res.status(status).json({
+          jsonrpc: "2.0",
+          error: { code: status === 401 ? -32001 : -32603, message: err.expose ? err.message : "Internal server error" },
+          id: null,
+        });
+      }
     }
+  });
+
+  app.get("/mcp", (_req, res) => {
+    res.status(405).json({
+      jsonrpc: "2.0",
+      error: { code: -32000, message: "Method not allowed. Use POST." },
+      id: null,
+    });
   });
 
   app.listen(env.HTTP_PORT, () => {
