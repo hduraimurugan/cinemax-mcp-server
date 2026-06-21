@@ -6,6 +6,7 @@ import { userTools } from "../tools/user.tools.js";
 import { analyticsTools } from "../tools/analytics.tools.js";
 import { platformTools } from "../tools/platform.tools.js";
 import { requirePermission } from "../auth/permissions.js";
+import { resolveScope } from "../auth/scopeResolver.js";
 import { checkRateLimit } from "../ratelimit/tokenBucket.js";
 import { toMcpError } from "../errors/index.js";
 import logger from "../logging/logger.js";
@@ -28,7 +29,14 @@ export function registerTools(server) {
       def.inputSchema,
       async (rawArgs, extra) => {
         const start = Date.now();
-        const scope = extra?.scope || { role: "admin", hall_ids: [], scope_id: "unknown" };
+        let scope = extra?.scope;
+        if (!scope) {
+          try {
+            scope = resolveScope();
+          } catch (err) {
+            scope = { role: "admin", hall_ids: [], scope_id: "unknown" };
+          }
+        }
 
         try {
           requirePermission(def.permission ?? "admin", scope);

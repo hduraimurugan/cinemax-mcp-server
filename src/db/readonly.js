@@ -17,8 +17,8 @@ export async function query(sql, params = [], scope = { hall_ids: [], role: "adm
   const client = await pool.connect();
   try {
     const hallIds = scope.hall_ids.length > 0 ? scope.hall_ids : [""];
-    await client.query("SET LOCAL app.current_hall_ids = $1", [hallIds.join(",")]);
-    await client.query("SET LOCAL app.scope_role = $1", [scope.role]);
+    await client.query("SELECT set_config('app.current_hall_ids', $1, false)", [hallIds.join(",")]);
+    await client.query("SELECT set_config('app.scope_role', $1, false)", [scope.role]);
     const result = await client.query(sql, params);
     return result.rows;
   } finally {
@@ -30,8 +30,8 @@ export async function queryTx(sqls, scope) {
   const client = await pool.connect();
   try {
     const hallIds = scope.hall_ids.length > 0 ? scope.hall_ids : [""];
-    await client.query("SET LOCAL app.current_hall_ids = $1", [hallIds.join(",")]);
-    await client.query("SET LOCAL app.scope_role = $1", [scope.role]);
+    await client.query("SELECT set_config('app.current_hall_ids', $1, false)", [hallIds.join(",")]);
+    await client.query("SELECT set_config('app.scope_role', $1, false)", [scope.role]);
     const results = [];
     for (const { text, values } of sqls) {
       const result = await client.query(text, values);

@@ -1,4 +1,5 @@
-import "dotenv/config";
+
+
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerTools } from "./registry/index.js";
 import { startStdio } from "./transports/stdio.js";

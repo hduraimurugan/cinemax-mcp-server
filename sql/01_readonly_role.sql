@@ -12,7 +12,7 @@
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'cinemax_reader') THEN
-    CREATE ROLE cinemax_reader WITH LOGIN PASSWORD 'Durai@1234' NOBYPASSRLS;
+    CREATE ROLE cinemax_reader WITH LOGIN PASSWORD 'Durai1234' NOBYPASSRLS;
   END IF;
 END
 $$;
