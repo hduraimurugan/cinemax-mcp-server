@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "cinemax": {
+      "command": "node",
+      "args": ["D:/path/to/cinemax-mcp-server/src/server.js"],
+      "env": {
+        "CINEMAX_MCP_API_KEY": "cmax_your_api_key_here",
+        "DATABASE_URL": "postgresql://cinemax_reader:your_secure_password@localhost:5432/cinema_hall_db",
+        "API_BASE_URL": "http://localhost:5000"
+      }
+    }
+  }
+}

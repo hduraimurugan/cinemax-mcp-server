@@ -1,0 +1,40 @@
+# === Dependencies ===
+node_modules/
+
+# === Environment & Secrets ===
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# === Logs ===
+logs/
+*.log
+npm-debug.log*
+
+# === OS files ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === Runtime ===
+dist/
+build/
+*.tsbuildinfo
+
+# === Testing ===
+coverage/
+.nyc_output/
+
+# === Misc ===
+.cache/
+tmp/
+temp/

@@ -1,0 +1,40 @@
+import express from "express";
+import {
+  StreamableHTTPServerTransport,
+} from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { resolveScope } from "../auth/scopeResolver.js";
+import { env } from "../config/index.js";
+import logger from "../logging/logger.js";
+
+export async function startHttp(server) {
+  const app = express();
+  app.use(express.json());
+
+  app.get("/healthz", (_req, res) => {
+    res.json({ ok: true, uptime: process.uptime(), ts: new Date().toISOString() });
+  });
+
+  app.get("/readyz", (_req, res) => {
+    res.json({ ok: true });
+  });
+
+  app.post("/mcp", async (req, res) => {
+    try {
+      const scope = resolveScope({ apiKey: req.headers["x-api-key"] });
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => crypto.randomUUID(),
+      });
+      transport.requestContext = () => ({ scope });
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+    } catch (err) {
+      const status = err.code === 401 ? 401 : 500;
+      logger.error({ err: err.message, status }, "HTTP transport error");
+      res.status(status).json({ error: err.expose ? err.message : "Internal server error" });
+    }
+  });
+
+  app.listen(env.HTTP_PORT, () => {
+    logger.info({ port: env.HTTP_PORT }, "cinemax-mcp HTTP transport listening");
+  });
+}
