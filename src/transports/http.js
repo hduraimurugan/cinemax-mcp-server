@@ -9,6 +9,13 @@ import logger from "../logging/logger.js";
 export async function startHttp(server) {
   const app = express();
   app.use(express.json());
+  app.use((_req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Headers", "x-api-key, content-type");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    if (_req.method === "OPTIONS") return res.sendStatus(204);
+    next();
+  });
 
   app.get("/healthz", (_req, res) => {
     res.json({ ok: true, uptime: process.uptime(), ts: new Date().toISOString() });
