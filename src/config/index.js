@@ -13,6 +13,7 @@ const envSchema = z.object({
   HTTP_PORT: z.coerce.number().default(8787),
   MCP_API_KEYS: z.string().optional(),
   CINEMAX_MCP_API_KEY: z.string().optional(),
+  MCP_SERVICE_TOKEN: z.string().optional(),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   SENTRY_DSN: z.string().optional(),
 });
