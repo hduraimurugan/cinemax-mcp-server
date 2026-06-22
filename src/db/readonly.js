@@ -402,8 +402,56 @@ export const getRevenueReport = (hallId, from, to, scope) =>
      JOIN screens sc ON sc.id = sh.screen_id
      WHERE sc.cinema_hall_id = $1 AND sh.show_date BETWEEN $2 AND $3
        AND b.booking_status = 'confirmed'
-     GROUP BY m.title, sc.name
-     ORDER BY revenue DESC`,
+      GROUP BY m.title, sc.name
+      ORDER BY revenue DESC`,
     [hallId, from, to],
     scope,
+  );
+
+export const getOrgSettings = (scope) =>
+  query(
+    `SELECT section, value, schema_version, updated_at
+     FROM organization_settings`,
+    [],
+    scope
+  );
+
+export const getHallSettings = (hallId, scope) =>
+  query(
+    `SELECT section, value, schema_version, updated_at
+     FROM hall_settings
+     WHERE hall_id = $1`,
+    [hallId],
+    scope
+  );
+
+export const listTeamMembers = (scope) =>
+  query(
+    `SELECT om.id AS member_id, om.org_id, om.status, om.joined_at,
+            cau.id AS admin_id, cau.name, cau.email, cau.phone,
+            r.key AS role_key, r.label AS role_label
+     FROM organization_members om
+     JOIN cinema_admin_user cau ON cau.id = om.admin_id
+     JOIN roles r ON r.id = om.role_id
+     ORDER BY cau.name`,
+    [],
+    scope
+  );
+
+export const listRolesPermissions = (scope) =>
+  query(
+    `SELECT r.id AS role_id, r.key AS role_key, r.label AS role_label, r.description AS role_description, r.is_system,
+            COALESCE(
+              json_agg(
+                json_build_object('key', p.key, 'label', p.label, 'resource', p.resource)
+              ) FILTER (WHERE p.id IS NOT NULL),
+              '[]'::json
+            ) AS permissions
+     FROM roles r
+     LEFT JOIN role_permissions rp ON rp.role_id = r.id
+     LEFT JOIN permissions p ON p.id = rp.permission_id
+     GROUP BY r.id, r.key, r.label, r.description, r.is_system
+     ORDER BY r.is_system DESC, r.label`,
+    [],
+    scope
   );

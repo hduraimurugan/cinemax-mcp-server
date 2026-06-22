@@ -6,8 +6,8 @@ export function requirePermission(requiredRole, scope) {
     throw e;
   }
 
-  if (requiredRole === "admin" && scope.role !== "admin" && scope.role !== "superAdmin") {
-    const e = new Error("FORBIDDEN: Admin or SuperAdmin access required");
+  if (requiredRole === "admin" && scope.role !== "admin" && scope.role !== "owner" && scope.role !== "superAdmin") {
+    const e = new Error("FORBIDDEN: Owner, Admin, or SuperAdmin access required");
     e.code = 403;
     e.expose = true;
     throw e;

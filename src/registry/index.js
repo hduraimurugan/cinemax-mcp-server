@@ -5,6 +5,7 @@ import { bookingTools } from "../tools/booking.tools.js";
 import { userTools } from "../tools/user.tools.js";
 import { analyticsTools } from "../tools/analytics.tools.js";
 import { platformTools } from "../tools/platform.tools.js";
+import { teamTools } from "../tools/team.tools.js";
 import { requirePermission } from "../auth/permissions.js";
 import { resolveScope } from "../auth/scopeResolver.js";
 import { checkRateLimit } from "../ratelimit/tokenBucket.js";
@@ -19,6 +20,7 @@ const allToolDefs = [
   ...userTools,
   ...analyticsTools,
   ...platformTools,
+  ...teamTools,
 ];
 
 export function registerTools(server) {
