@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiClient } from "../api/client.js";
+import { apiClient, apiClientForHall } from "../api/client.js";
 
 const dateStr = () => z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -7,11 +7,13 @@ export const platformTools = [
   {
     name: "get_dashboard_stats",
     description: "All dashboard metrics in one call: today's stats, 7-day trend, recent bookings, today's shows with occupancy. Mirrors the existing admin dashboard endpoint.",
-    inputSchema: { cinema_hall_id: z.string().uuid().optional() },
+    inputSchema: { cinema_hall_id: z.string().uuid() },
     permission: "any",
     rateLimit: { capacity: 10, refillPerSec: 0.5 },
-    handler: async (args) => {
-      const client = apiClient({ hall_ids: args.cinema_hall_id ? [args.cinema_hall_id] : [] });
+    handler: async (args, scope) => {
+      // /api/dashboard/stats is behind requireActiveHall — it 400'd whenever
+      // cinema_hall_id was omitted, so it's now a required argument.
+      const client = apiClientForHall(scope, args.cinema_hall_id);
       const { data } = await client.get("/api/dashboard/stats");
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -30,7 +32,7 @@ export const platformTools = [
     },
     permission: "any",
     rateLimit: { capacity: 15, refillPerSec: 0.5 },
-    handler: async (args) => {
+    handler: async (args, scope) => {
       const params = new URLSearchParams();
       if (args.from_date) params.set("from_date", args.from_date);
       if (args.to_date) params.set("to_date", args.to_date);
@@ -39,7 +41,7 @@ export const platformTools = [
       params.set("page", String(args.page));
       params.set("limit", String(args.limit));
 
-      const client = apiClient({ hall_ids: [args.cinema_hall_id] });
+      const client = apiClientForHall(scope, args.cinema_hall_id);
       const { data } = await client.get(`/api/payment/admin/orders?${params.toString()}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -57,7 +59,7 @@ export const platformTools = [
     },
     permission: "any",
     rateLimit: { capacity: 15, refillPerSec: 0.5 },
-    handler: async (args) => {
+    handler: async (args, scope) => {
       const params = new URLSearchParams();
       if (args.status) params.set("status", args.status);
       if (args.from_date) params.set("from_date", args.from_date);
@@ -65,8 +67,20 @@ export const platformTools = [
       params.set("page", String(args.page));
       params.set("limit", String(args.limit));
 
-      const client = apiClient({ hall_ids: [args.cinema_hall_id] });
+      const client = apiClientForHall(scope, args.cinema_hall_id);
       const { data } = await client.get(`/api/refunds?${params.toString()}`);
+      return { content: [{ type: "text", text: JSON.stringify(data) }] };
+    },
+  },
+  {
+    name: "get_refund_for_booking",
+    description: "Refund record for a specific booking, if one exists.",
+    inputSchema: { cinema_hall_id: z.string().uuid(), booking_id: z.string().uuid() },
+    permission: "any",
+    rateLimit: { capacity: 20, refillPerSec: 1 },
+    handler: async (args, scope) => {
+      const client = apiClientForHall(scope, args.cinema_hall_id);
+      const { data } = await client.get(`/api/refunds/booking/${args.booking_id}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
   },
@@ -152,6 +166,18 @@ export const platformTools = [
     handler: async (args) => {
       const client = apiClient();
       const { data } = await client.get(`/api/auth/admins/${args.admin_id}/logs`);
+      return { content: [{ type: "text", text: JSON.stringify(data) }] };
+    },
+  },
+  {
+    name: "get_ad_clicks",
+    description: "Click log for a specific advertisement, with customer details where available. SuperAdmin only.",
+    inputSchema: { ad_id: z.string().uuid() },
+    permission: "superAdmin",
+    rateLimit: { capacity: 10, refillPerSec: 0.5 },
+    handler: async (args) => {
+      const client = apiClient();
+      const { data } = await client.get(`/api/ads/${args.ad_id}/clicks`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
   },

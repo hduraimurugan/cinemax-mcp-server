@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { getShowOccupancy } from "../db/readonly.js";
-import { apiClient } from "../api/client.js";
+import { getShowOccupancy, getShowSeatMap, resolveHallForShow } from "../db/readonly.js";
+import { apiClient, apiClientForHall } from "../api/client.js";
 
 export const showTools = [
   {
@@ -12,8 +12,10 @@ export const showTools = [
     },
     permission: "any",
     rateLimit: { capacity: 30, refillPerSec: 2 },
-    handler: async (args) => {
-      const client = apiClient();
+    handler: async (args, scope) => {
+      // /api/shows/date/:date is behind requireActiveHall — this tool always
+      // took cinema_hall_id but never forwarded it, so every call 400'd.
+      const client = apiClientForHall(scope, args.cinema_hall_id);
       const { data } = await client.get(`/api/shows/date/${args.date}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -25,6 +27,7 @@ export const showTools = [
     permission: "any",
     rateLimit: { capacity: 30, refillPerSec: 2 },
     handler: async (args) => {
+      // GET /api/shows/get/:id is a public route — no hall header needed.
       const client = apiClient();
       const { data } = await client.get(`/api/shows/get/${args.show_id}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
@@ -32,7 +35,7 @@ export const showTools = [
   },
   {
     name: "get_show_occupancy",
-    description: "Seat occupancy breakdown for a show: booked vs available by seat category (premium, gold, silver).",
+    description: "Seat occupancy breakdown for a show: booked vs available overall and by seat category (premium, gold, silver).",
     inputSchema: { show_id: z.string().uuid() },
     permission: "any",
     rateLimit: { capacity: 30, refillPerSec: 2 },
@@ -48,13 +51,35 @@ export const showTools = [
     },
   },
   {
+    name: "get_show_seat_map",
+    description: "Per-seat status for a show: seat label (e.g. A1), type, and whether it's available, held, or booked.",
+    inputSchema: { show_id: z.string().uuid() },
+    permission: "any",
+    rateLimit: { capacity: 20, refillPerSec: 1 },
+    handler: async (args, scope) => {
+      const seats = await getShowSeatMap(args.show_id, scope);
+      return { content: [{ type: "text", text: JSON.stringify({ show_id: args.show_id, seats }) }] };
+    },
+  },
+  {
     name: "get_show_booking_count",
     description: "Confirmed booking count and total amount for a show. Useful for admin cancel-warning dialogs.",
     inputSchema: { show_id: z.string().uuid() },
     permission: "any",
     rateLimit: { capacity: 30, refillPerSec: 2 },
-    handler: async (args) => {
-      const client = apiClient();
+    handler: async (args, scope) => {
+      // /api/shows/booking-count/:id is behind requireActiveHall but this
+      // tool only takes a show_id — resolve the hall under RLS first so the
+      // caller doesn't need to already know it (and can't probe a hall
+      // outside their scope: an unauthorized show simply resolves to nothing).
+      const hall = await resolveHallForShow(args.show_id, scope);
+      if (!hall) {
+        return {
+          content: [{ type: "text", text: JSON.stringify({ error: "Show not found" }) }],
+          isError: true,
+        };
+      }
+      const client = apiClientForHall(scope, hall.cinema_hall_id);
       const { data } = await client.get(`/api/shows/booking-count/${args.show_id}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },

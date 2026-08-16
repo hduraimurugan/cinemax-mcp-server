@@ -8,6 +8,7 @@ import {
   getMoviePerformance,
   getShowPerformance,
   getRevenueReport,
+  getOfferPerformance,
 } from "../db/readonly.js";
 
 const dateStr = () => z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -147,6 +148,23 @@ export const analyticsTools = [
       const to = args.to_date ?? todayStr();
       const rows = await getShowPerformance(args.cinema_hall_id, from, to, scope);
       return { content: [{ type: "text", text: JSON.stringify({ shows: rows }) }] };
+    },
+  },
+  {
+    name: "get_offer_performance",
+    description: "Discount offer redemptions and revenue impact for a cinema hall over a date range, grouped by offer code.",
+    inputSchema: {
+      cinema_hall_id: uuid(),
+      from_date: dateStr().optional(),
+      to_date: dateStr().optional(),
+    },
+    permission: "any",
+    rateLimit: { capacity: 15, refillPerSec: 0.5 },
+    handler: async (args, scope) => {
+      const from = args.from_date ?? daysAgo(30);
+      const to = args.to_date ?? todayStr();
+      const rows = await getOfferPerformance(args.cinema_hall_id, from, to, scope);
+      return { content: [{ type: "text", text: JSON.stringify({ offers: rows }) }] };
     },
   },
 ];

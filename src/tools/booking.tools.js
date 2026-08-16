@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { getBookingSummary, getBookingsByDate } from "../db/readonly.js";
-import { apiClient } from "../api/client.js";
+import { getBookingSummary, getBookingsByDate, resolveHallForBooking } from "../db/readonly.js";
+import { apiClientForHall } from "../api/client.js";
 
 export const bookingTools = [
   {
@@ -9,8 +9,17 @@ export const bookingTools = [
     inputSchema: { booking_id: z.string().uuid() },
     permission: "any",
     rateLimit: { capacity: 30, refillPerSec: 2 },
-    handler: async (args) => {
-      const client = apiClient();
+    handler: async (args, scope) => {
+      // /api/booking/admin/verify/:id is behind requireActiveHall — resolve
+      // the owning hall under RLS first (see get_show_booking_count for why).
+      const hall = await resolveHallForBooking(args.booking_id, scope);
+      if (!hall) {
+        return {
+          content: [{ type: "text", text: JSON.stringify({ error: "Booking not found" }) }],
+          isError: true,
+        };
+      }
+      const client = apiClientForHall(scope, hall.cinema_hall_id);
       const { data } = await client.get(`/api/booking/admin/verify/${args.booking_id}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -30,7 +39,7 @@ export const bookingTools = [
     },
     permission: "any",
     rateLimit: { capacity: 20, refillPerSec: 1 },
-    handler: async (args) => {
+    handler: async (args, scope) => {
       const params = new URLSearchParams();
       if (args.from_date) params.set("from_date", args.from_date);
       if (args.to_date) params.set("to_date", args.to_date);
@@ -40,7 +49,7 @@ export const bookingTools = [
       params.set("page", String(args.page));
       params.set("limit", String(args.limit));
 
-      const client = apiClient({ hall_ids: [args.cinema_hall_id] });
+      const client = apiClientForHall(scope, args.cinema_hall_id);
       const { data } = await client.get(`/api/booking/admin/all?${params.toString()}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },

@@ -1,7 +1,20 @@
 import { z } from "zod";
-import { listCinemas, getCinema, getCinemaStats, listScreens } from "../db/readonly.js";
+import { listCinemas, getCinema, getCinemaStats, listScreens, getScreenLayout } from "../db/readonly.js";
+import { apiClient } from "../api/client.js";
 
 export const cinemaTools = [
+  {
+    name: "list_halls",
+    description: "Cinema halls the caller's organization owns or has been assigned to, via the same endpoint the admin app uses. Use this to discover a cinema_hall_id before calling any hall-scoped tool.",
+    inputSchema: {},
+    permission: "any",
+    rateLimit: { capacity: 20, refillPerSec: 1 },
+    handler: async () => {
+      const client = apiClient();
+      const { data } = await client.get("/api/halls");
+      return { content: [{ type: "text", text: JSON.stringify(data) }] };
+    },
+  },
   {
     name: "list_cinemas",
     description: "List cinema halls. Admins see only their own halls; SuperAdmins see all active halls.",
@@ -67,13 +80,30 @@ export const cinemaTools = [
   },
   {
     name: "list_cinema_screens",
-    description: "List all screens in a cinema hall with seat configuration and pricing tiers.",
+    description: "List all screens in a cinema hall with seat configuration, pricing tiers, and aisle layout.",
     inputSchema: { cinema_hall_id: z.string().uuid() },
     permission: "any",
     rateLimit: { capacity: 30, refillPerSec: 2 },
     handler: async (args, scope) => {
       const rows = await listScreens(args.cinema_hall_id, scope);
       return { content: [{ type: "text", text: JSON.stringify({ screens: rows }) }] };
+    },
+  },
+  {
+    name: "get_screen_layout",
+    description: "Full seat-level layout for one screen: every seat's row, column, type, price-tier, and blocked status, plus aisle configuration and screen position. Both admin and customer apps render from this exact structure.",
+    inputSchema: { screen_id: z.string().uuid() },
+    permission: "any",
+    rateLimit: { capacity: 20, refillPerSec: 1 },
+    handler: async (args, scope) => {
+      const layout = await getScreenLayout(args.screen_id, scope);
+      if (!layout) {
+        return {
+          content: [{ type: "text", text: JSON.stringify({ error: "Screen not found" }) }],
+          isError: true,
+        };
+      }
+      return { content: [{ type: "text", text: JSON.stringify({ screen: layout }) }] };
     },
   },
 ];
