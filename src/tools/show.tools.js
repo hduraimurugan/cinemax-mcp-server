@@ -10,7 +10,7 @@ export const showTools = [
       cinema_hall_id: z.string().uuid(),
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     },
-    permission: "any",
+    permission: "shows.read",
     rateLimit: { capacity: 30, refillPerSec: 2 },
     handler: async (args, scope) => {
       // /api/shows/date/:date is behind requireActiveHall — this tool always
@@ -24,11 +24,11 @@ export const showTools = [
     name: "get_show",
     description: "Full show details with screen name, timings, status, pricing, and seat occupancy breakdown.",
     inputSchema: { show_id: z.string().uuid() },
-    permission: "any",
+    permission: "shows.read",
     rateLimit: { capacity: 30, refillPerSec: 2 },
-    handler: async (args) => {
+    handler: async (args, scope) => {
       // GET /api/shows/get/:id is a public route — no hall header needed.
-      const client = apiClient();
+      const client = apiClient(scope);
       const { data } = await client.get(`/api/shows/get/${args.show_id}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -37,7 +37,7 @@ export const showTools = [
     name: "get_show_occupancy",
     description: "Seat occupancy breakdown for a show: booked vs available overall and by seat category (premium, gold, silver).",
     inputSchema: { show_id: z.string().uuid() },
-    permission: "any",
+    permission: "shows.read",
     rateLimit: { capacity: 30, refillPerSec: 2 },
     handler: async (args, scope) => {
       const row = await getShowOccupancy(args.show_id, scope);
@@ -54,7 +54,7 @@ export const showTools = [
     name: "get_show_seat_map",
     description: "Per-seat status for a show: seat label (e.g. A1), type, and whether it's available, held, or booked.",
     inputSchema: { show_id: z.string().uuid() },
-    permission: "any",
+    permission: "shows.read",
     rateLimit: { capacity: 20, refillPerSec: 1 },
     handler: async (args, scope) => {
       const seats = await getShowSeatMap(args.show_id, scope);
@@ -65,7 +65,7 @@ export const showTools = [
     name: "get_show_booking_count",
     description: "Confirmed booking count and total amount for a show. Useful for admin cancel-warning dialogs.",
     inputSchema: { show_id: z.string().uuid() },
-    permission: "any",
+    permission: "bookings.read",
     rateLimit: { capacity: 30, refillPerSec: 2 },
     handler: async (args, scope) => {
       // /api/shows/booking-count/:id is behind requireActiveHall but this

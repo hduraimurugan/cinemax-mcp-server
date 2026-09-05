@@ -7,10 +7,10 @@ export const cinemaTools = [
     name: "list_halls",
     description: "Cinema halls the caller's organization owns or has been assigned to, via the same endpoint the admin app uses. Use this to discover a cinema_hall_id before calling any hall-scoped tool.",
     inputSchema: {},
-    permission: "any",
+    permission: "halls.read",
     rateLimit: { capacity: 20, refillPerSec: 1 },
-    handler: async () => {
-      const client = apiClient();
+    handler: async (args, scope) => {
+      const client = apiClient(scope);
       const { data } = await client.get("/api/halls");
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -19,7 +19,7 @@ export const cinemaTools = [
     name: "list_cinemas",
     description: "List cinema halls. Admins see only their own halls; SuperAdmins see all active halls.",
     inputSchema: { active: z.boolean().optional() },
-    permission: "any",
+    permission: "halls.read",
     rateLimit: { capacity: 30, refillPerSec: 2 },
     handler: async (args, scope) => {
       const rows = await listCinemas(scope, args.active);
@@ -30,7 +30,7 @@ export const cinemaTools = [
     name: "get_cinema",
     description: "Get a single cinema hall by ID, including screen count and today's show count.",
     inputSchema: { cinema_hall_id: z.string().uuid() },
-    permission: "any",
+    permission: "halls.read",
     rateLimit: { capacity: 30, refillPerSec: 2 },
     handler: async (args, scope) => {
       const cinema = await getCinema(args.cinema_hall_id, scope);
@@ -51,7 +51,7 @@ export const cinemaTools = [
       from_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       to_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     },
-    permission: "any",
+    permission: "analytics.view",
     rateLimit: { capacity: 10, refillPerSec: 1 },
     handler: async (args, scope) => {
       const today = new Date();
@@ -82,7 +82,7 @@ export const cinemaTools = [
     name: "list_cinema_screens",
     description: "List all screens in a cinema hall with seat configuration, pricing tiers, and aisle layout.",
     inputSchema: { cinema_hall_id: z.string().uuid() },
-    permission: "any",
+    permission: "screens.read",
     rateLimit: { capacity: 30, refillPerSec: 2 },
     handler: async (args, scope) => {
       const rows = await listScreens(args.cinema_hall_id, scope);
@@ -93,7 +93,7 @@ export const cinemaTools = [
     name: "get_screen_layout",
     description: "Full seat-level layout for one screen: every seat's row, column, type, price-tier, and blocked status, plus aisle configuration and screen position. Both admin and customer apps render from this exact structure.",
     inputSchema: { screen_id: z.string().uuid() },
-    permission: "any",
+    permission: "screens.read",
     rateLimit: { capacity: 20, refillPerSec: 1 },
     handler: async (args, scope) => {
       const layout = await getScreenLayout(args.screen_id, scope);

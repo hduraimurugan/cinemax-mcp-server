@@ -18,14 +18,25 @@ pool.on("error", (err) => {
   logger.error({ err: err.message }, "Read-only PG pool error");
 });
 
+// GUCs are set with is_local=true (LOCAL, per Postgres docs), which only
+// survives for the current transaction — so an explicit BEGIN/COMMIT wraps
+// every call here. Without the transaction, a LOCAL set_config would reset
+// before the very next statement on the same connection even ran; without
+// LOCAL (the previous is_local=false), the scope instead outlived the
+// query and leaked onto whatever the pool handed that connection to next.
 export async function query(sql, params = [], scope = { hall_ids: [], role: "admin" }) {
   const client = await pool.connect();
   try {
     const hallIds = scope.hall_ids.length > 0 ? scope.hall_ids : [""];
-    await client.query("SELECT set_config('app.current_hall_ids', $1, false)", [hallIds.join(",")]);
-    await client.query("SELECT set_config('app.scope_role', $1, false)", [scope.role]);
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('app.current_hall_ids', $1, true)", [hallIds.join(",")]);
+    await client.query("SELECT set_config('app.scope_role', $1, true)", [scope.role]);
     const result = await client.query(sql, params);
+    await client.query("COMMIT");
     return result.rows;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
   } finally {
     client.release();
   }
@@ -35,14 +46,19 @@ export async function queryTx(sqls, scope) {
   const client = await pool.connect();
   try {
     const hallIds = scope.hall_ids.length > 0 ? scope.hall_ids : [""];
-    await client.query("SELECT set_config('app.current_hall_ids', $1, false)", [hallIds.join(",")]);
-    await client.query("SELECT set_config('app.scope_role', $1, false)", [scope.role]);
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('app.current_hall_ids', $1, true)", [hallIds.join(",")]);
+    await client.query("SELECT set_config('app.scope_role', $1, true)", [scope.role]);
     const results = [];
     for (const { text, values } of sqls) {
       const result = await client.query(text, values);
       results.push(result.rows);
     }
+    await client.query("COMMIT");
     return results;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
   } finally {
     client.release();
   }
@@ -51,18 +67,6 @@ export async function queryTx(sqls, scope) {
 export async function queryOne(sql, params, scope) {
   const rows = await query(sql, params, scope);
   return rows.length > 0 ? rows[0] : null;
-}
-
-// Boot-time check only — not scoped to any caller, so it bypasses the
-// set_config()/RLS dance every other query here goes through. Used to warn
-// early if MCP_SERVICE_TOKEN's admin lacks the org membership that
-// requireActiveHall now requires unconditionally (see server.js).
-export async function hasActiveMembership(adminId) {
-  const { rows } = await pool.query(
-    `SELECT 1 FROM organization_members WHERE admin_id = $1 AND status = 'active' LIMIT 1`,
-    [adminId],
-  );
-  return rows.length > 0;
 }
 
 // Occupancy % for a show, weighted against real seat capacity (screens.layout),

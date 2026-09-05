@@ -26,7 +26,7 @@ export const analyticsTools = [
       from_date: dateStr().optional(),
       to_date: dateStr().optional(),
     },
-    permission: "any",
+    permission: "analytics.view",
     rateLimit: { capacity: 20, refillPerSec: 1 },
     handler: async (args, scope) => {
       const from = args.from_date ?? daysAgo(30);
@@ -43,7 +43,7 @@ export const analyticsTools = [
       from_date: dateStr().optional(),
       to_date: dateStr().optional(),
     },
-    permission: "any",
+    permission: "analytics.view",
     rateLimit: { capacity: 20, refillPerSec: 1 },
     handler: async (args, scope) => {
       const from = args.from_date ?? daysAgo(90);
@@ -59,7 +59,7 @@ export const analyticsTools = [
       cinema_hall_id: uuid(),
       year: z.coerce.number().int().min(2020).max(2030).optional(),
     },
-    permission: "any",
+    permission: "analytics.view",
     rateLimit: { capacity: 20, refillPerSec: 1 },
     handler: async (args, scope) => {
       const year = args.year ?? new Date().getFullYear();
@@ -74,7 +74,7 @@ export const analyticsTools = [
       cinema_hall_id: uuid(),
       date: dateStr().optional(),
     },
-    permission: "any",
+    permission: "analytics.view",
     rateLimit: { capacity: 20, refillPerSec: 1 },
     handler: async (args, scope) => {
       const date = args.date ?? todayStr();
@@ -90,7 +90,7 @@ export const analyticsTools = [
       from_date: dateStr().optional(),
       to_date: dateStr().optional(),
     },
-    permission: "any",
+    permission: "analytics.view",
     rateLimit: { capacity: 15, refillPerSec: 0.5 },
     handler: async (args, scope) => {
       const from = args.from_date ?? daysAgo(30);
@@ -107,7 +107,7 @@ export const analyticsTools = [
       from_date: dateStr().optional(),
       to_date: dateStr().optional(),
     },
-    permission: "any",
+    permission: "analytics.view",
     rateLimit: { capacity: 10, refillPerSec: 0.5 },
     handler: async (args, scope) => {
       const from = args.from_date ?? daysAgo(30);
@@ -124,7 +124,7 @@ export const analyticsTools = [
       from_date: dateStr().optional(),
       to_date: dateStr().optional(),
     },
-    permission: "any",
+    permission: "analytics.view",
     rateLimit: { capacity: 15, refillPerSec: 0.5 },
     handler: async (args, scope) => {
       const from = args.from_date ?? daysAgo(30);
@@ -141,7 +141,7 @@ export const analyticsTools = [
       from_date: dateStr().optional(),
       to_date: dateStr().optional(),
     },
-    permission: "any",
+    permission: "analytics.view",
     rateLimit: { capacity: 15, refillPerSec: 0.5 },
     handler: async (args, scope) => {
       const from = args.from_date ?? daysAgo(7);
@@ -158,7 +158,7 @@ export const analyticsTools = [
       from_date: dateStr().optional(),
       to_date: dateStr().optional(),
     },
-    permission: "any",
+    permission: "analytics.view",
     rateLimit: { capacity: 15, refillPerSec: 0.5 },
     handler: async (args, scope) => {
       const from = args.from_date ?? daysAgo(30);

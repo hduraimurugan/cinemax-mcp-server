@@ -3,13 +3,16 @@ import { env } from "../config/index.js";
 
 function baseHeaders(scope) {
   const headers = { "Content-Type": "application/json" };
-  if (process.env.MCP_SERVICE_TOKEN) {
+  if (scope?.api_key) {
+    // The caller's own personal key — the API resolves it back to their real
+    // identity and enforces their real Roles & Permissions natively. This
+    // replaces the old single shared MCP_SERVICE_TOKEN, which made every MCP
+    // caller indistinguishable from one fixed superAdmin.
+    headers["X-API-Key"] = scope.api_key;
+  } else if (process.env.MCP_SERVICE_TOKEN) {
+    // Only reached for calls made before a caller scope exists (e.g. the
+    // boot-time preflight in server.js). No tool handler should hit this path.
     headers.Authorization = `Bearer ${process.env.MCP_SERVICE_TOKEN}`;
-  }
-  if (scope?.org_id) {
-    // Not enforced by the API yet (requireActiveOrg isn't wired to any route
-    // as of this writing), but harmless to send and correct once it is.
-    headers["X-Org-Id"] = scope.org_id;
   }
   return headers;
 }
@@ -35,10 +38,15 @@ export function apiClient(scope, { timeout } = {}) {
 
 // Client scoped to a specific hall, for endpoints behind requireActiveHall
 // (bookings, shows, dashboard, refunds, payment orders, ...). Refuses to
-// send a hall the caller's scope doesn't actually authorize — previously
-// callers built `{ hall_ids: [args.cinema_hall_id] }` themselves, which
-// discarded the caller's real scope and would happily forward any hall id
-// the model passed in, superAdmin-only or not.
+// send a hall the caller's scope doesn't actually authorize.
+//
+// This check is now unconditional — it used to skip entirely for
+// role === "superAdmin" or an empty hall_ids list, which was exactly the
+// shape of the old default/fallback scope, so in practice any cinema_hall_id
+// the model invented was forwarded unchecked. scope.hall_ids now comes from
+// the caller's own API key introspection (their real hall assignments), so a
+// genuine superAdmin's hall_ids legitimately covers every hall in their org
+// — there is no scope for which "unconditional" is too strict.
 export function apiClientForHall(scope, hallId, { timeout } = {}) {
   if (!hallId) {
     const e = new Error("cinema_hall_id is required for this tool");
@@ -46,7 +54,7 @@ export function apiClientForHall(scope, hallId, { timeout } = {}) {
     e.expose = true;
     throw e;
   }
-  if (scope?.role !== "superAdmin" && scope?.hall_ids?.length > 0 && !scope.hall_ids.includes(hallId)) {
+  if (!scope?.hall_ids?.includes(hallId)) {
     const e = new Error("FORBIDDEN: cinema_hall_id is outside this API key's authorized halls");
     e.code = 403;
     e.expose = true;

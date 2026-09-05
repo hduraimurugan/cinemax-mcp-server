@@ -20,9 +20,8 @@ cp .env.example .env
 
 Edit `.env`:
 - Set `DATABASE_URL` to your PostgreSQL connection string (use the `cinemax_reader` role)
-- Set `CINEMAX_MCP_API_KEY` to a secure random key
 - Set `API_BASE_URL` to your Cinemax API endpoint
-- Set `MCP_SERVICE_TOKEN` to a cinema-admin JWT for the HTTP-backed tools. This admin **must be an active member of an organization** (`organization_members.status = 'active'`) — `requireActiveHall` on the API side requires org membership unconditionally, including for `superAdmin` tokens. The server checks this at boot and logs a warning if it's missing.
+- Set `CINEMAX_MCP_API_KEY` to **your own** personal key — generate one from Settings > API Keys in the admin panel (or `POST /api/api-keys` while logged in). This is stdio-mode's one credential for the life of the process; HTTP mode instead reads a per-request `x-api-key` header, so it needs no key here at all.
 
 ### Run
 
@@ -47,7 +46,7 @@ Add to `claude_desktop_config.json`:
       "command": "node",
       "args": ["/path/to/cinemax-mcp-server/src/server.js"],
       "env": {
-        "CINEMAX_MCP_API_KEY": "cmax_...",
+        "CINEMAX_MCP_API_KEY": "cmk_your_personal_key_here",
         "DATABASE_URL": "postgresql://cinemax_reader:...@host:5432/cinema_hall_db",
         "API_BASE_URL": "http://localhost:5000"
       }
@@ -62,7 +61,7 @@ Same stdio config format (see `examples/` for templates).
 
 ### ChatGPT / OpenAI Agents
 
-Deploy with `MCP_TRANSPORT=http` and register `https://your-host:8787/mcp` with header `x-api-key: cmax_...`.
+Deploy with `MCP_TRANSPORT=http` and register `https://your-host:8787/mcp` with header `x-api-key: cmk_...`. Each teammate uses **their own** key here — a shared deployment naturally gives every caller their own Roles & Permissions, since the header is resolved per request (see Access Model below).
 
 ## Tools
 
@@ -106,20 +105,27 @@ psql -U postgres -d cinema_hall_db -f sql/02_rls_policies.sql
 │   Cursor...)  │                     └────────────────────┘                  └──────────────┘
 ```
 
-- **API key** → scope resolver → `{role, hall_ids}`
-- **Permission gate** restricts superAdmin-only tools
+- **API key** → `GET /api/api-keys/context` → scope `{role, permissions, hall_ids, ...}`
+- **Permission gate** checks the caller's real permission keys against each tool's requirement
+- **Tool-level filtering** — a fresh `McpServer` is built per HTTP request (and once at stdio boot) registering only the tools the caller's permissions allow, so `tools/list` itself reflects what they can actually do
 - **RLS policies** enforce hall-scoped reads at the database level for the tables they cover (cinema halls, screens, shows, bookings, payment orders, refunds, customers, admin users) — team/settings/role tables are read through the API instead, see the Tools table above
-- **Hall-scope check** — HTTP-backed tools that take a `cinema_hall_id` verify it's inside the caller's authorized `hall_ids` (or that the caller is superAdmin) before sending `X-Hall-Id`, rather than trusting whatever the model passes in
+- **Hall-scope check** — HTTP-backed tools that take a `cinema_hall_id` verify it's inside the caller's actual authorized `hall_ids` (from their own hall assignments) before sending `X-Hall-Id`, rather than trusting whatever the model passes in
 - **Rate limiter** prevents runaway agent loops
+
+## Access Model — one credential per person, real permissions
+
+Every admin (owner, admin, or any staff role — manager, finance, marketing, auditor, sales, ticket operator, or a custom role) can generate their own personal API key from **Settings > API Keys**. There is no shared "service" identity anymore: the MCP server resolves each key against `cinema-hall-api`'s own `GET /api/api-keys/context`, which returns exactly what that admin can do — their permission keys and the halls they're assigned to (with `read_only`/`full` scope) — resolved fresh from the database on every cache refresh (60s TTL), so a role edit or revocation takes effect within a minute, not "until the process restarts."
+
+A key inherits its owner's permissions exactly — there's no narrower "read-only key" concept (yet); revoking access means revoking the key or editing the person's role. Because the server forwards the caller's own key to the API as `X-API-Key` on every request (instead of one shared token), `cinema-hall-api`'s own `requirePermission`/`requireActiveHall` middleware is the actual enforcement — the MCP layer's checks are a client-side mirror of the same rules, not a separate authority.
 
 ## Security
 
-- Read-only PostgreSQL role (`cinemax_reader`) — no write capabilities
-- Row-Level Security enforces per-hall data isolation
-- Tool-level permission gate (admin vs superAdmin)
+- Read-only PostgreSQL role (`cinemax_reader`) — no write capabilities (except the three explicit, `confirm: true`-gated notification tools, which call the API's own write endpoints)
+- Row-Level Security enforces per-hall data isolation, fed the caller's real hall assignments
+- Tool-level permission gate checked against real `cinema-hall-api` permission keys, not a coarse 3-tier role
 - Parameterized SQL only — no raw query injection from tool arguments
-- Sensitive columns (passwords, tokens, OTPs) explicitly revoked, along with the RBAC/settings tables that have no RLS policies (`organization_settings`, `hall_settings`, `user_settings`, `organizations`, `roles`, `permissions`, `role_permissions`, `hall_assignments`) — `organization_members` is the one exception, kept readable only for the boot-time service-token preflight
-- HTTP requests to the API carry `X-Org-Id` (from scope) alongside `X-Hall-Id`, ready for when `requireActiveOrg` is wired to routes on the API side
+- Sensitive columns (passwords, tokens, OTPs) explicitly revoked, along with the RBAC/settings tables that have no RLS policies (`organization_settings`, `hall_settings`, `user_settings`, `organizations`, `roles`, `permissions`, `role_permissions`, `hall_assignments`)
+- An API key is a hashed, revocable, non-JWT credential (`admin_api_keys.token_hash`) — it cannot itself be used to mint or revoke other keys, so a leaked key can't be used to persist access past its own revocation
 - All tool calls logged with scope, duration, and status
 
 ## Phase Roadmap
@@ -128,6 +134,7 @@ psql -U postgres -d cinema_hall_db -f sql/02_rls_policies.sql
 |---|---|---|
 | 1 | Read-only tools (54 tools, DB + API) | ✅ Complete |
 | 1.5 | Notification write tools (`create_broadcast`, `announce_offer`, `announce_ad`, gated by `confirm: true`) | ✅ Complete |
+| 1.6 | Per-user API keys + real Roles & Permissions (replacing the single shared service identity) | ✅ Complete |
 | 2 | Advanced analytics, caching, materialized views | 🔜 Planned |
 | 3 | Broader admin management (CRUD via `prepare_`/`confirm_` pattern) | 🔜 Planned |
 | 4 | Booking management (holds, confirms, refunds) | 🔜 Planned |

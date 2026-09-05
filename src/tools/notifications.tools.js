@@ -53,9 +53,9 @@ export const notificationsTools = [
     },
     permission: "superAdmin",
     rateLimit: { capacity: 15, refillPerSec: 0.5 },
-    handler: async (args) => {
+    handler: async (args, scope) => {
       const params = args.source ? `?source=${args.source}` : "";
-      const client = apiClient();
+      const client = apiClient(scope);
       const { data } = await client.get(`/api/notifications/broadcast${params}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -66,8 +66,8 @@ export const notificationsTools = [
     inputSchema: { broadcast_id: z.string().uuid() },
     permission: "superAdmin",
     rateLimit: { capacity: 20, refillPerSec: 1 },
-    handler: async (args) => {
-      const client = apiClient();
+    handler: async (args, scope) => {
+      const client = apiClient(scope);
       const { data } = await client.get(`/api/notifications/broadcast/${args.broadcast_id}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -83,14 +83,14 @@ export const notificationsTools = [
     },
     permission: "superAdmin",
     rateLimit: { capacity: 15, refillPerSec: 0.5 },
-    handler: async (args) => {
+    handler: async (args, scope) => {
       const params = new URLSearchParams();
       if (args.source) params.set("source", args.source);
       if (args.event) params.set("event", args.event);
       if (args.status) params.set("status", args.status);
       params.set("page", String(args.page));
 
-      const client = apiClient();
+      const client = apiClient(scope);
       const { data } = await client.get(`/api/notifications/activity?${params.toString()}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -104,8 +104,8 @@ export const notificationsTools = [
     },
     permission: "superAdmin",
     rateLimit: { capacity: 20, refillPerSec: 1 },
-    handler: async (args) => {
-      const client = apiClient();
+    handler: async (args, scope) => {
+      const client = apiClient(scope);
       const { data } = await client.get(`/api/notifications/device-tokens?type=${args.type}&id=${args.id}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -126,7 +126,7 @@ export const notificationsTools = [
     },
     permission: "superAdmin",
     rateLimit: { capacity: 15, refillPerSec: 0.5 },
-    handler: async (args) => {
+    handler: async (args, scope) => {
       const params = new URLSearchParams();
       if (args.org_id) params.set("orgId", args.org_id);
       if (args.admin_id) params.set("adminId", args.admin_id);
@@ -138,7 +138,7 @@ export const notificationsTools = [
       params.set("page", String(args.page));
       params.set("limit", String(args.limit));
 
-      const client = apiClient();
+      const client = apiClient(scope);
       const { data } = await client.get(`/api/audit-logs?${params.toString()}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -170,7 +170,7 @@ export const notificationsTools = [
     },
     permission: "superAdmin",
     rateLimit: { capacity: 3, refillPerSec: 0.05 },
-    handler: async (args) => {
+    handler: async (args, scope) => {
       const body = {
         title: args.title,
         body: args.body,
@@ -183,7 +183,7 @@ export const notificationsTools = [
         scheduledFor: args.scheduled_for,
       };
 
-      const client = apiClient(undefined, { timeout: WRITE_TIMEOUT_MS });
+      const client = apiClient(scope, { timeout: WRITE_TIMEOUT_MS });
       try {
         const { data } = await client.post("/api/notifications/broadcast", body);
         const detail = await fetchBroadcastDetail(client, data.broadcast.id);
@@ -230,8 +230,8 @@ export const notificationsTools = [
     },
     permission: "superAdmin",
     rateLimit: { capacity: 3, refillPerSec: 0.05 },
-    handler: async (args) => {
-      const client = apiClient(undefined, { timeout: WRITE_TIMEOUT_MS });
+    handler: async (args, scope) => {
+      const client = apiClient(scope, { timeout: WRITE_TIMEOUT_MS });
       try {
         const { data } = await client.post(`/api/offers/${args.offer_id}/announce`, {
           channels: args.channels,
@@ -282,8 +282,8 @@ export const notificationsTools = [
     },
     permission: "superAdmin",
     rateLimit: { capacity: 3, refillPerSec: 0.05 },
-    handler: async (args) => {
-      const client = apiClient(undefined, { timeout: WRITE_TIMEOUT_MS });
+    handler: async (args, scope) => {
+      const client = apiClient(scope, { timeout: WRITE_TIMEOUT_MS });
       try {
         const { data } = await client.post(`/api/ads/${args.ad_id}/announce`, {
           channels: args.channels,

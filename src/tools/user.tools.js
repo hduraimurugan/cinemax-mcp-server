@@ -13,13 +13,13 @@ export const userTools = [
     },
     permission: "superAdmin",
     rateLimit: { capacity: 15, refillPerSec: 0.5 },
-    handler: async (args) => {
+    handler: async (args, scope) => {
       const params = new URLSearchParams();
       if (args.search) params.set("search", args.search);
       params.set("page", String(args.page));
       params.set("limit", String(args.limit));
 
-      const client = apiClient();
+      const client = apiClient(scope);
       const { data } = await client.get(`/api/customers?${params.toString()}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -30,8 +30,8 @@ export const userTools = [
     inputSchema: { customer_id: z.string().uuid() },
     permission: "superAdmin",
     rateLimit: { capacity: 15, refillPerSec: 0.5 },
-    handler: async (args) => {
-      const client = apiClient();
+    handler: async (args, scope) => {
+      const client = apiClient(scope);
       const { data } = await client.get(`/api/customers/${args.customer_id}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },

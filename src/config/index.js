@@ -11,7 +11,9 @@ const envSchema = z.object({
   API_BASE_URL: z.string().url().default("http://localhost:5000"),
   MCP_TRANSPORT: z.enum(["stdio", "http"]).default("stdio"),
   HTTP_PORT: z.coerce.number().default(8787),
-  MCP_API_KEYS: z.string().optional(),
+  // The stdio-mode credential — a personal key from Settings > API Keys,
+  // pasted into the local client config (Claude Desktop, etc). Not used by
+  // the HTTP transport, where each request carries its own x-api-key header.
   CINEMAX_MCP_API_KEY: z.string().optional(),
   MCP_SERVICE_TOKEN: z.string().optional(),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),

@@ -5,16 +5,22 @@ import {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerTools } from "../registry/index.js";
 import { resolveScope } from "../auth/scopeResolver.js";
+import { hasPermission } from "../auth/permissions.js";
 import { env } from "../config/index.js";
 import logger from "../logging/logger.js";
 
-function createServer() {
+function createServer(scope) {
   const srv = new McpServer({
     name: "cinemax-mcp",
     version: "1.0.0",
     capabilities: { tools: {} },
   });
-  registerTools(srv);
+  // A fresh server per request is what makes per-caller tool filtering
+  // possible at all: the SDK's tools/list handler takes no per-request
+  // context, so the only way a finance-role key's tools/list can differ
+  // from a superAdmin's is to never have registered the other tools on
+  // *this* server instance in the first place.
+  registerTools(srv, { toolFilter: (def) => hasPermission(scope, def.permission ?? "superAdmin") });
   return srv;
 }
 
@@ -38,9 +44,42 @@ export async function startHttp() {
   });
 
   app.post("/mcp", async (req, res) => {
-    const server = createServer();
+    const apiKey = req.headers["x-api-key"];
+    if (!apiKey) {
+      // Deliberately not delegated to resolveScope's own fallback: that
+      // fallback exists for stdio, where CINEMAX_MCP_API_KEY IS the one
+      // caller. Applying it here too would mean an HTTP request with no
+      // x-api-key header silently borrows this process's own local
+      // credential instead of being rejected.
+      return res.status(401).json({
+        jsonrpc: "2.0",
+        error: { code: -32001, message: "Missing x-api-key header" },
+        id: null,
+      });
+    }
+
+    let scope;
     try {
-      req.auth = resolveScope({ apiKey: req.headers["x-api-key"] });
+      scope = await resolveScope({ apiKey });
+    } catch (err) {
+      const status = err.code === 401 ? 401 : 500;
+      return res.status(status).json({
+        jsonrpc: "2.0",
+        error: { code: -32001, message: err.expose ? err.message : "Internal server error" },
+        id: null,
+      });
+    }
+
+    // The SDK's own AuthInfo contract — streamableHttp.js reads req.auth and
+    // forwards it into every tool handler as extra.authInfo. Carrying the
+    // caller's raw key in .token (rather than a bespoke extra.scope field
+    // the SDK never actually populates) is what let registry/index.js
+    // resolve the real per-request caller instead of silently falling back
+    // to the process-wide env scope.
+    req.auth = { token: apiKey, clientId: scope.scope_id, scopes: [] };
+
+    const server = createServer(scope);
+    try {
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
       });

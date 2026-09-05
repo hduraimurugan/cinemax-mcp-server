@@ -14,9 +14,9 @@ export const movieTools = [
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(100).default(10),
     },
-    permission: "any",
+    permission: "movies.read",
     rateLimit: { capacity: 30, refillPerSec: 2 },
-    handler: async (args) => {
+    handler: async (args, scope) => {
       const params = new URLSearchParams();
       if (args.status) params.set("status", args.status);
       if (args.genre) args.genre.forEach((g) => params.append("genre", g));
@@ -25,7 +25,7 @@ export const movieTools = [
       params.set("page", String(args.page));
       params.set("limit", String(args.limit));
 
-      const client = apiClient();
+      const client = apiClient(scope);
       const { data } = await client.get(`/api/movies?${params.toString()}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -34,10 +34,10 @@ export const movieTools = [
     name: "get_movie",
     description: "Full movie details including description, cast, trailer URL, genres, languages, and TMDB metadata.",
     inputSchema: { movie_id: z.string().uuid() },
-    permission: "any",
+    permission: "movies.read",
     rateLimit: { capacity: 30, refillPerSec: 2 },
-    handler: async (args) => {
-      const client = apiClient();
+    handler: async (args, scope) => {
+      const client = apiClient(scope);
       const { data } = await client.get(`/api/movies/${args.movie_id}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -49,10 +49,10 @@ export const movieTools = [
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(100).default(10),
     },
-    permission: "any",
+    permission: "movies.read",
     rateLimit: { capacity: 30, refillPerSec: 2 },
-    handler: async (args) => {
-      const client = apiClient();
+    handler: async (args, scope) => {
+      const client = apiClient(scope);
       const { data } = await client.get(`/api/movies?status=now_showing&page=${args.page}&limit=${args.limit}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -64,10 +64,10 @@ export const movieTools = [
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(100).default(10),
     },
-    permission: "any",
+    permission: "movies.read",
     rateLimit: { capacity: 30, refillPerSec: 2 },
-    handler: async (args) => {
-      const client = apiClient();
+    handler: async (args, scope) => {
+      const client = apiClient(scope);
       const { data } = await client.get(`/api/movies?status=upcoming&page=${args.page}&limit=${args.limit}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -81,7 +81,7 @@ export const movieTools = [
       from_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       to_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     },
-    permission: "any",
+    permission: "analytics.view",
     rateLimit: { capacity: 20, refillPerSec: 1 },
     handler: async (args, scope) => {
       const today = new Date();

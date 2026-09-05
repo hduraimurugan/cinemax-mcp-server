@@ -8,7 +8,7 @@ export const platformTools = [
     name: "get_dashboard_stats",
     description: "All dashboard metrics in one call: today's stats, 7-day trend, recent bookings, today's shows with occupancy. Mirrors the existing admin dashboard endpoint.",
     inputSchema: { cinema_hall_id: z.string().uuid() },
-    permission: "any",
+    permission: "dashboard.view",
     rateLimit: { capacity: 10, refillPerSec: 0.5 },
     handler: async (args, scope) => {
       // /api/dashboard/stats is behind requireActiveHall — it 400'd whenever
@@ -30,7 +30,7 @@ export const platformTools = [
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(100).default(10),
     },
-    permission: "any",
+    permission: "payment.read",
     rateLimit: { capacity: 15, refillPerSec: 0.5 },
     handler: async (args, scope) => {
       const params = new URLSearchParams();
@@ -57,7 +57,7 @@ export const platformTools = [
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(100).default(10),
     },
-    permission: "any",
+    permission: "refunds.read",
     rateLimit: { capacity: 15, refillPerSec: 0.5 },
     handler: async (args, scope) => {
       const params = new URLSearchParams();
@@ -76,7 +76,7 @@ export const platformTools = [
     name: "get_refund_for_booking",
     description: "Refund record for a specific booking, if one exists.",
     inputSchema: { cinema_hall_id: z.string().uuid(), booking_id: z.string().uuid() },
-    permission: "any",
+    permission: "refunds.read",
     rateLimit: { capacity: 20, refillPerSec: 1 },
     handler: async (args, scope) => {
       const client = apiClientForHall(scope, args.cinema_hall_id);
@@ -86,7 +86,7 @@ export const platformTools = [
   },
   {
     name: "list_offers",
-    description: "All discount offers/coupons. Supports filtering by scope, active status, and text search. SuperAdmin only.",
+    description: "All discount offers/coupons. Supports filtering by scope, active status, and text search.",
     inputSchema: {
       scope: z.enum(["global", "hall"]).optional(),
       is_active: z.boolean().optional(),
@@ -94,9 +94,9 @@ export const platformTools = [
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(100).default(10),
     },
-    permission: "superAdmin",
+    permission: "offers.read",
     rateLimit: { capacity: 15, refillPerSec: 0.5 },
-    handler: async (args) => {
+    handler: async (args, scope) => {
       const params = new URLSearchParams();
       if (args.scope) params.set("scope", args.scope);
       if (args.is_active !== undefined) params.set("is_active", String(args.is_active));
@@ -104,7 +104,7 @@ export const platformTools = [
       params.set("page", String(args.page));
       params.set("limit", String(args.limit));
 
-      const client = apiClient();
+      const client = apiClient(scope);
       const { data } = await client.get(`/api/offers?${params.toString()}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -117,9 +117,9 @@ export const platformTools = [
     },
     permission: "any",
     rateLimit: { capacity: 30, refillPerSec: 2 },
-    handler: async (args) => {
+    handler: async (args, scope) => {
       const params = args.placement ? `?placement=${args.placement}` : "";
-      const client = apiClient();
+      const client = apiClient(scope);
       const { data } = await client.get(`/api/ads/active${params}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -130,8 +130,8 @@ export const platformTools = [
     inputSchema: {},
     permission: "any",
     rateLimit: { capacity: 30, refillPerSec: 2 },
-    handler: async () => {
-      const client = apiClient();
+    handler: async (args, scope) => {
+      const client = apiClient(scope);
       const { data } = await client.get("/api/settings");
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -146,13 +146,13 @@ export const platformTools = [
     },
     permission: "superAdmin",
     rateLimit: { capacity: 10, refillPerSec: 0.5 },
-    handler: async (args) => {
+    handler: async (args, scope) => {
       const params = new URLSearchParams();
       if (args.search) params.set("search", args.search);
       params.set("page", String(args.page));
       params.set("limit", String(args.limit));
 
-      const client = apiClient();
+      const client = apiClient(scope);
       const { data } = await client.get(`/api/auth/admins?${params.toString()}`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -163,8 +163,8 @@ export const platformTools = [
     inputSchema: { admin_id: z.string().uuid() },
     permission: "superAdmin",
     rateLimit: { capacity: 10, refillPerSec: 0.5 },
-    handler: async (args) => {
-      const client = apiClient();
+    handler: async (args, scope) => {
+      const client = apiClient(scope);
       const { data } = await client.get(`/api/auth/admins/${args.admin_id}/logs`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },
@@ -175,8 +175,8 @@ export const platformTools = [
     inputSchema: { ad_id: z.string().uuid() },
     permission: "superAdmin",
     rateLimit: { capacity: 10, refillPerSec: 0.5 },
-    handler: async (args) => {
-      const client = apiClient();
+    handler: async (args, scope) => {
+      const client = apiClient(scope);
       const { data } = await client.get(`/api/ads/${args.ad_id}/clicks`);
       return { content: [{ type: "text", text: JSON.stringify(data) }] };
     },

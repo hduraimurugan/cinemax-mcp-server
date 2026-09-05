@@ -7,7 +7,7 @@ export const bookingTools = [
     name: "get_booking",
     description: "Fetch a single booking by UUID with full details. Scoped to the admin's cinema hall (cannot read bookings from other halls).",
     inputSchema: { booking_id: z.string().uuid() },
-    permission: "any",
+    permission: "bookings.read",
     rateLimit: { capacity: 30, refillPerSec: 2 },
     handler: async (args, scope) => {
       // /api/booking/admin/verify/:id is behind requireActiveHall — resolve
@@ -37,7 +37,7 @@ export const bookingTools = [
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(100).default(10),
     },
-    permission: "any",
+    permission: "bookings.read",
     rateLimit: { capacity: 20, refillPerSec: 1 },
     handler: async (args, scope) => {
       const params = new URLSearchParams();
@@ -62,7 +62,7 @@ export const bookingTools = [
       from_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       to_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     },
-    permission: "any",
+    permission: "bookings.read",
     rateLimit: { capacity: 20, refillPerSec: 1 },
     handler: async (args, scope) => {
       const today = new Date();
@@ -92,7 +92,7 @@ export const bookingTools = [
       from_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       to_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     },
-    permission: "any",
+    permission: "bookings.read",
     rateLimit: { capacity: 20, refillPerSec: 1 },
     handler: async (args, scope) => {
       const today = new Date();
