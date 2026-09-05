@@ -1,6 +1,6 @@
 # Cinemax MCP Server
 
-Model Context Protocol (MCP) server for the Cinemax cinema booking platform. Provides **read-only** tools for AI assistants to query cinema, movie, show, booking, user, and analytics data.
+Model Context Protocol (MCP) server for the Cinemax cinema booking platform. Provides mostly **read-only** tools for AI assistants to query cinema, movie, show, booking, user, analytics, and notification data — plus a small set of explicit, confirm-gated write tools for sending notifications.
 
 ## Quick Start
 
@@ -66,7 +66,7 @@ Deploy with `MCP_TRANSPORT=http` and register `https://your-host:8787/mcp` with 
 
 ## Tools
 
-Phase 1 provides **49 read-only tools** across 8 domains:
+Phase 1 provides **57 tools** (54 read-only + 3 confirm-gated write) across 9 domains:
 
 | Domain | Tools | Description |
 |---|---|---|
@@ -78,8 +78,9 @@ Phase 1 provides **49 read-only tools** across 8 domains:
 | Analytics | 9 | Daily/weekly/monthly collections, occupancy, utilization, revenue, movie/show/offer performance |
 | Platform | 10 | Dashboard stats, payment orders, refunds (list + by booking), offers, ads (+ click log), settings, admins, audit logs |
 | Team | 7 | Org/hall settings, team members (list + detail + hall assignments), roles/permissions (list + detail) |
+| Notifications | 8 | Broadcasts (list + detail), unified auto-send activity feed, device-token metadata, org-wide audit log, **plus** `create_broadcast`/`announce_offer`/`announce_ad` — the only write tools in this server, each requiring `confirm: true` |
 
-Team tools call the API (`/api/team`, `/api/roles`, `/api/settings/*`) rather than querying the database directly — those tables never received Row-Level Security policies (see `sql/02_rls_policies.sql`), so routing through the API's own org-membership checks is what actually scopes them.
+Team and Notifications tools call the API (`/api/team`, `/api/roles`, `/api/settings/*`, `/api/notifications/*`, `/api/audit-logs`) rather than querying the database directly — those tables never received Row-Level Security policies (see `sql/02_rls_policies.sql`), so routing through the API's own org-membership/permission checks is what actually scopes them.
 
 See `docs/mcp_implementation_plan.md` for the complete tool catalog with input/output schemas.
 
@@ -100,7 +101,7 @@ psql -U postgres -d cinema_hall_db -f sql/02_rls_policies.sql
 ```
 ┌──────────────┐     stdio/HTTP      ┌────────────────────┐     DB / API      ┌──────────────┐
 │  AI Assistant │ ──────────────────> │  cinemax-mcp-server │ ───────────────> │  Cinemax API │
-│  (Claude,     │ <────────────────── │  (McpServer + 49   │ <─────────────── │  (Express 5  │
+│  (Claude,     │ <────────────────── │  (McpServer + 57   │ <─────────────── │  (Express 5  │
 │   ChatGPT,    │     MCP results     │   tools + RLS)     │    SQL results   │  + PostgreSQL│
 │   Cursor...)  │                     └────────────────────┘                  └──────────────┘
 ```
@@ -125,9 +126,10 @@ psql -U postgres -d cinema_hall_db -f sql/02_rls_policies.sql
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1 | Read-only tools (49 tools, DB + API) | ✅ Complete |
+| 1 | Read-only tools (54 tools, DB + API) | ✅ Complete |
+| 1.5 | Notification write tools (`create_broadcast`, `announce_offer`, `announce_ad`, gated by `confirm: true`) | ✅ Complete |
 | 2 | Advanced analytics, caching, materialized views | 🔜 Planned |
-| 3 | Admin management (CRUD via `prepare_`/`confirm_` pattern) | 🔜 Planned |
+| 3 | Broader admin management (CRUD via `prepare_`/`confirm_` pattern) | 🔜 Planned |
 | 4 | Booking management (holds, confirms, refunds) | 🔜 Planned |
 | 5 | AI-powered analytics (predictions, recommendations) | 🔜 Planned |
 | 6 | Multi-cinema business intelligence | 🔜 Planned |
