@@ -14,19 +14,23 @@ function baseHeaders(scope) {
   return headers;
 }
 
-function makeClient(headers) {
+function makeClient(headers, timeout = 10000) {
   return axios.create({
     baseURL: env.API_BASE_URL,
     headers,
-    timeout: 10000,
+    timeout,
     validateStatus: (status) => status < 500,
   });
 }
 
 // Client with no hall context — for endpoints that aren't behind
 // requireActiveHall (movies, offers, settings, superAdmin routes, ...).
-export function apiClient(scope) {
-  return makeClient(baseHeaders(scope));
+// `timeout` lets write tools opt into a longer budget than the 10s default —
+// some downstream operations (e.g. broadcast sends) do real, sequential,
+// per-recipient work server-side (DB writes + live FCM/SMTP calls) that can
+// legitimately take longer than a typical read.
+export function apiClient(scope, { timeout } = {}) {
+  return makeClient(baseHeaders(scope), timeout);
 }
 
 // Client scoped to a specific hall, for endpoints behind requireActiveHall
@@ -35,7 +39,7 @@ export function apiClient(scope) {
 // callers built `{ hall_ids: [args.cinema_hall_id] }` themselves, which
 // discarded the caller's real scope and would happily forward any hall id
 // the model passed in, superAdmin-only or not.
-export function apiClientForHall(scope, hallId) {
+export function apiClientForHall(scope, hallId, { timeout } = {}) {
   if (!hallId) {
     const e = new Error("cinema_hall_id is required for this tool");
     e.code = 400;
@@ -48,5 +52,5 @@ export function apiClientForHall(scope, hallId) {
     e.expose = true;
     throw e;
   }
-  return makeClient({ ...baseHeaders(scope), "X-Hall-Id": hallId });
+  return makeClient({ ...baseHeaders(scope), "X-Hall-Id": hallId }, timeout);
 }

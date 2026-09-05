@@ -4,6 +4,35 @@ import { apiClient } from "../api/client.js";
 const dateStr = () => z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const channelsSchema = () => z.array(z.enum(["push", "email"])).optional();
 
+// Broadcast sends are synchronous end-to-end server-side (sequential
+// per-recipient DB writes + live FCM/SMTP calls, no batching), so they can
+// legitimately take much longer than a typical read — hence the longer
+// timeout write tools use below instead of the 10s default.
+const WRITE_TIMEOUT_MS = 45000;
+// How far back to look when recovering from a client-side timeout: the
+// server doesn't cancel work on client disconnect, so a "timed out" call may
+// well have completed moments later.
+const TIMEOUT_RECOVERY_WINDOW_MS = 5 * 60 * 1000;
+
+async function fetchBroadcastDetail(client, broadcastId) {
+  const { data } = await client.get(`/api/notifications/broadcast/${broadcastId}`);
+  return data;
+}
+
+// After a client-side timeout (ECONNABORTED), look up whether the broadcast
+// actually went through anyway, instead of letting the caller assume it
+// failed. `source` narrows the search (manual/offer/ad) and `match` picks
+// the specific row out of the recent list.
+async function recoverBroadcastAfterTimeout(client, { source, match }) {
+  const { data } = await client.get(`/api/notifications/broadcast?source=${source}`);
+  const cutoff = Date.now() - TIMEOUT_RECOVERY_WINDOW_MS;
+  const candidate = (data.broadcasts || [])
+    .filter((b) => new Date(b.created_at).getTime() >= cutoff && match(b))
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+  if (!candidate) return null;
+  return fetchBroadcastDetail(client, candidate.id);
+}
+
 // Read tools call the API rather than the database directly — admin_broadcasts,
 // notifications, notification_dispatch_log, device_tokens, and audit_logs never
 // received grants/RLS policies (see sql/01_readonly_role.sql, sql/02_rls_policies.sql),
@@ -122,7 +151,9 @@ export const notificationsTools = [
       "Before calling this tool, ask the user for every field below one at a time (or as a group) — do not invent a title, message, audience, or delivery timing on their behalf: " +
       "(1) Title, (2) Message body, (3) an optional image URL, (4) which channels beyond in-app (push, email, or both — in-app always fires), " +
       "(5) audience (all customers / all admins / a specific hall's customers, which needs cinema_hall_id / a custom pick of specific customer_ids and admin_ids), " +
-      "and (6) whether to send now or schedule for later (scheduled_for). Only pass confirm: true once the user has supplied and confirmed these choices. SuperAdmin only.",
+      "and (6) whether to send now or schedule for later (scheduled_for). If this notification is about a specific movie, offer, or ad, look up its poster/image first " +
+      "(get_movie, list_movies, list_offers, list_active_ads) and offer to use it as image_url rather than sending without one. " +
+      "Only pass confirm: true once the user has supplied and confirmed these choices. The response includes the full per-recipient delivery breakdown, not just totals. SuperAdmin only.",
     inputSchema: {
       confirm: z.literal(true).describe("Set true only after the user has explicitly reviewed and approved the title, message, audience, channels, and delivery timing below."),
       title: z.string().min(1).describe("Notification title. Ask the user for this — do not invent it."),
@@ -152,9 +183,36 @@ export const notificationsTools = [
         scheduledFor: args.scheduled_for,
       };
 
-      const client = apiClient();
-      const { data } = await client.post("/api/notifications/broadcast", body);
-      return { content: [{ type: "text", text: JSON.stringify(data) }] };
+      const client = apiClient(undefined, { timeout: WRITE_TIMEOUT_MS });
+      try {
+        const { data } = await client.post("/api/notifications/broadcast", body);
+        const detail = await fetchBroadcastDetail(client, data.broadcast.id);
+        return { content: [{ type: "text", text: JSON.stringify(detail) }] };
+      } catch (err) {
+        if (err.code !== "ECONNABORTED") throw err;
+        const recovered = await recoverBroadcastAfterTimeout(client, {
+          source: "manual",
+          match: (b) => b.title === args.title,
+        });
+        if (recovered) {
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                note: "The request timed out waiting for a response, but the server doesn't cancel work on client disconnect — this broadcast completed anyway (found by looking it up afterward). Do not resend.",
+                ...recovered,
+              }),
+            }],
+          };
+        }
+        return {
+          content: [{
+            type: "text",
+            text: "The request timed out and no matching broadcast was found afterward — the outcome is unknown. Check list_broadcasts before retrying, to avoid a possible duplicate send.",
+          }],
+          isError: true,
+        };
+      }
     },
   },
   {
@@ -173,13 +231,40 @@ export const notificationsTools = [
     permission: "superAdmin",
     rateLimit: { capacity: 3, refillPerSec: 0.05 },
     handler: async (args) => {
-      const client = apiClient();
-      const { data } = await client.post(`/api/offers/${args.offer_id}/announce`, {
-        channels: args.channels,
-        title: args.title,
-        body: args.body,
-      });
-      return { content: [{ type: "text", text: JSON.stringify(data) }] };
+      const client = apiClient(undefined, { timeout: WRITE_TIMEOUT_MS });
+      try {
+        const { data } = await client.post(`/api/offers/${args.offer_id}/announce`, {
+          channels: args.channels,
+          title: args.title,
+          body: args.body,
+        });
+        const detail = await fetchBroadcastDetail(client, data.broadcast.id);
+        return { content: [{ type: "text", text: JSON.stringify(detail) }] };
+      } catch (err) {
+        if (err.code !== "ECONNABORTED") throw err;
+        const recovered = await recoverBroadcastAfterTimeout(client, {
+          source: "offer",
+          match: (b) => b.origin_id === args.offer_id,
+        });
+        if (recovered) {
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                note: "The request timed out waiting for a response, but the server doesn't cancel work on client disconnect — this announcement completed anyway (found by looking it up afterward). Do not resend.",
+                ...recovered,
+              }),
+            }],
+          };
+        }
+        return {
+          content: [{
+            type: "text",
+            text: "The request timed out and no matching announcement was found afterward — the outcome is unknown. Check list_broadcasts (source: offer) before retrying, to avoid a possible duplicate send.",
+          }],
+          isError: true,
+        };
+      }
     },
   },
   {
@@ -198,13 +283,40 @@ export const notificationsTools = [
     permission: "superAdmin",
     rateLimit: { capacity: 3, refillPerSec: 0.05 },
     handler: async (args) => {
-      const client = apiClient();
-      const { data } = await client.post(`/api/ads/${args.ad_id}/announce`, {
-        channels: args.channels,
-        title: args.title,
-        body: args.body,
-      });
-      return { content: [{ type: "text", text: JSON.stringify(data) }] };
+      const client = apiClient(undefined, { timeout: WRITE_TIMEOUT_MS });
+      try {
+        const { data } = await client.post(`/api/ads/${args.ad_id}/announce`, {
+          channels: args.channels,
+          title: args.title,
+          body: args.body,
+        });
+        const detail = await fetchBroadcastDetail(client, data.broadcast.id);
+        return { content: [{ type: "text", text: JSON.stringify(detail) }] };
+      } catch (err) {
+        if (err.code !== "ECONNABORTED") throw err;
+        const recovered = await recoverBroadcastAfterTimeout(client, {
+          source: "ad",
+          match: (b) => b.origin_id === args.ad_id,
+        });
+        if (recovered) {
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                note: "The request timed out waiting for a response, but the server doesn't cancel work on client disconnect — this announcement completed anyway (found by looking it up afterward). Do not resend.",
+                ...recovered,
+              }),
+            }],
+          };
+        }
+        return {
+          content: [{
+            type: "text",
+            text: "The request timed out and no matching announcement was found afterward — the outcome is unknown. Check list_broadcasts (source: ad) before retrying, to avoid a possible duplicate send.",
+          }],
+          isError: true,
+        };
+      }
     },
   },
 ];
