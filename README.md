@@ -1,6 +1,13 @@
 # Cinemax MCP Server
 
+[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![MCP SDK](https://img.shields.io/badge/MCP-SDK_%5E1.8-000000?logo=modelcontextprotocol&logoColor=white)](https://modelcontextprotocol.io/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-RLS-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Model Context Protocol (MCP) server for the Cinemax cinema booking platform. Provides mostly **read-only** tools for AI assistants to query cinema, movie, show, booking, user, analytics, and notification data — plus a small set of explicit, confirm-gated write tools for sending notifications.
+
+> Part of the **[Cinema Hall Platform](../README.md)** — see also [cinema-hall-admin](../cinema-hall-admin) (admin panel), [cinema-hall-api](../cinema-hall-api) (backend), and [cinema-hall-users](../cinema-hall-users) (customer app).
 
 ## Quick Start
 
@@ -140,3 +147,7 @@ A key inherits its owner's permissions exactly — there's no narrower "read-onl
 | 4 | Booking management (holds, confirms, refunds) | 🔜 Planned |
 | 5 | AI-powered analytics (predictions, recommendations) | 🔜 Planned |
 | 6 | Multi-cinema business intelligence | 🔜 Planned |
+
+## License
+
+Licensed under the [MIT License](LICENSE).
