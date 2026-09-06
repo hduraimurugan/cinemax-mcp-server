@@ -30,6 +30,19 @@ Edit `.env`:
 - Set `API_BASE_URL` to your Cinemax API endpoint
 - Set `CINEMAX_MCP_API_KEY` to **your own** personal key — generate one from Settings > API Keys in the admin panel (or `POST /api/api-keys` while logged in). This is stdio-mode's one credential for the life of the process; HTTP mode instead reads a per-request `x-api-key` header, so it needs no key here at all.
 
+#### Environment Variables
+
+| Variable | Required | Description |
+| :--- | :--- | :--- |
+| `DATABASE_URL` | Yes | PostgreSQL connection string using the `cinemax_reader` role |
+| `API_BASE_URL` | Yes | Base URL of the Cinemax API (`cinema-hall-api`) |
+| `MCP_TRANSPORT` | No | `stdio` (default, local AI assistants) or `http` (remote access) |
+| `HTTP_PORT` | No | Port for HTTP transport, default `8787` |
+| `CINEMAX_MCP_API_KEY` | stdio only | Your personal API key (`cmk_...`); HTTP mode uses a per-request `x-api-key` header instead |
+| `LOG_LEVEL` | No | `fatal`, `error`, `warn`, `info` (default), `debug`, or `trace` |
+| `SENTRY_DSN` | No | Optional Sentry error-tracking DSN |
+| `REDIS_URL` | No | Optional Redis URL for multi-instance rate limiting (HTTP mode only) |
+
 ### Run
 
 ```bash
